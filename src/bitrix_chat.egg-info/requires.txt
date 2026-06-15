@@ -1,0 +1,4 @@
+fastapi<1.0,>=0.115
+fast-bitrix24>=1.8.12
+python-dotenv<2.0,>=1.0
+uvicorn[standard]<1.0,>=0.30

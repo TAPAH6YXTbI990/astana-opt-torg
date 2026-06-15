@@ -1,0 +1,3 @@
+[console_scripts]
+bitrix-bind-openlines = bitrix_chat.bind_openlines:main
+bitrix-register-bot = bitrix_chat.register_bot:main

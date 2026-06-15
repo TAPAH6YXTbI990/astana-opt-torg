@@ -1,0 +1,119 @@
+from fast_bitrix24 import Bitrix
+import pandas as pd
+import time
+import os
+from dotenv import load_dotenv
+from datetime import datetime, timedelta
+
+load_dotenv()
+
+timeout = 30
+webhook = 'https://название раб пространства/rest/6/ID/'
+b = Bitrix(webhook)
+
+def get_data():
+    
+    # СОЗДАНИЕ КАРТОЧКИ
+
+    # d = datetime.now()
+    # d += timedelta(days=7)
+    # d = d.replace(second=0)
+    # dateStr = f"{d.year}-{d.month:02d}-{d.day:02d}T{d.hour:02d}:{d.minute:02d}:{d.second:02d}+00:00"
+
+    # b.call(
+    #     'crm.activity.todo.add',
+    #     {
+    #             "ownerTypeId": 3,
+    #             "ownerId": 2,
+    #             "description": 'Cделать задание по интеграции',
+    #             "deadline": dateStr,
+    #             "responsibleId": "+79107654432"
+    #     }
+    # )
+
+    # ПОЛУЧЕНИЕ КОНКРЕТНОГО
+
+    # params = {'filter': {'PHONE': "+79108780023"}, 'select': ["ID", "NAME", "LAST_NAME"]}
+    # qwe = b.get_all('crm.contact.list', params)
+
+    # if not qwe: print(qwe)
+    # else:print(qwe)
+
+    # ПОЛУЧЕНИЕ ВСЕГО
+
+    contact = b.get_all('crm.contact.list')
+    contact.sort(key = lambda d: int(d['ID']))
+    deal = b.get_all('crm.deal.list')
+    deal.sort(key = lambda d: int(d['ID']))
+
+        # # calendar = b.get_all('calendar.event.get', params={'type': 'user'})
+
+    # ИЗМЕНЕНИЕ
+
+    # params = {"ID": 2, "fields": {"NAME": "Человек"}}
+    # b.call(
+    #     'task.commentitem.add',
+    #     params,
+    #     raw=True
+    # )   
+
+    # ДОБАВЛЕНИЕ СОТРУДНИКА
+
+    # b.call(
+    #     'crm.contact.add', 
+    #     {
+    #         'fields': 
+    #         {
+    #             'NAME': 'Глеб',
+    #             "SECOND_NAME": "Егорович",
+    #             "LAST_NAME": "Титов", 
+    #             "PHONE": [ { "VALUE": "555888", "VALUE_TYPE": "WORK" } ] 
+    #         }
+    #     }
+    # )
+
+    # b.call(
+    #     'crm.lead.add', 
+    #     {
+    #         'fields': 
+    #         {
+    #             "TITLE": "ИП Титов",
+    #             'NAME': 'Глеб',
+    #             "SECOND_NAME": "Егорович",
+    #             "LAST_NAME": "Титов", 
+    #             "PHONE": [ { "VALUE": "555888", "VALUE_TYPE": "WORK" } ] 
+    #         }
+    #     }
+    # )
+
+    print(f"{contact} /n/n {deal}")
+    return deal, contact
+
+# def get_data_to_xls(deal, contact):
+#     data_contact= pd.DataFrame(contact)
+#     data_deal= pd.DataFrame(deal)
+#     # calendar_deal= pd.DataFrame(calendar)
+#     contact_table = data_contact.dropna(axis='columns', how="all")
+#     deal_table = data_deal.dropna(axis='columns', how="all")
+#     # calendar_table = calendar_deal.dropna(axis='columns', how="all")
+#     with pd.ExcelWriter('./bitrix_data.xlsx', engine='xlsxwriter') as writer:
+#         contact_table.to_excel(writer, sheet_name="Сontact", index=False)
+#         deal_table.to_excel(writer, sheet_name="Deal", index=False)
+#         # calendar_table.to_excel(writer, sheet_name="Сalendar", index=False)
+
+while True:
+    flag = True
+    start_time = time.time()
+    while flag:
+        try:
+            deal, contact = get_data()
+            # get_data_to_xls(deal, contact)
+            flag = False
+        except Exception:
+            time.sleep(3)
+            continue
+    finish_time = time.time()
+    duration = finish_time - start_time
+    if timeout - duration > 0:
+        time.sleep(timeout - duration)
+    continue

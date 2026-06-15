@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: bitrix-chat
+Version: 0.1.0
+Summary: Webhook bot for Bitrix24 chats
+Requires-Python: >=3.12
+Requires-Dist: fastapi<1.0,>=0.115
+Requires-Dist: fast-bitrix24>=1.8.12
+Requires-Dist: python-dotenv<2.0,>=1.0
+Requires-Dist: uvicorn[standard]<1.0,>=0.30
