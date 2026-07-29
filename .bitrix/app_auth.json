@@ -1,9 +1,0 @@
-{
-  "access_token": "ecc7686a008f467200620ee00000a1c7000007be1d4dfc16dd4a964e32d5f3d26f19eb",
-  "refresh_token": "dc46906a008f467200620ee00000a1c700000777e5d20d077397564f40974eb4cd73cc",
-  "client_endpoint": "https://b24.astopt.ru/rest/",
-  "server_endpoint": "https://oauth.bitrix24.tech/rest/",
-  "domain": "oauth.bitrix24.tech",
-  "member_id": "6be421d8bd92169c9f1df0b179afe9c5",
-  "application_token": "56e466053dfb0429c018b310c5a2d865"
-}
