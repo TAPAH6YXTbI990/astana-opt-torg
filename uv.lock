@@ -180,14 +180,12 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
-    { name = "docling" },
     { name = "faiss-cpu" },
     { name = "fast-bitrix24" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "langchain-core" },
     { name = "langchain-openai" },
-    { name = "lxml" },
     { name = "python-dotenv" },
     { name = "rank-bm25" },
     { name = "redis" },
@@ -195,23 +193,30 @@ dependencies = [
     { name = "uvicorn", extra = ["standard"] },
 ]
 
+[package.optional-dependencies]
+crawler = [
+    { name = "docling" },
+    { name = "lxml" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.12" },
-    { name = "docling", specifier = ">=2.0" },
+    { name = "docling", marker = "extra == 'crawler'", specifier = ">=2.0" },
     { name = "faiss-cpu", specifier = ">=1.8" },
     { name = "fast-bitrix24", specifier = ">=1.8.12" },
     { name = "fastapi", specifier = ">=0.115,<1.0" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "langchain-core", specifier = ">=0.3" },
     { name = "langchain-openai", specifier = ">=0.3" },
-    { name = "lxml", specifier = ">=5.0" },
+    { name = "lxml", marker = "extra == 'crawler'", specifier = ">=5.0" },
     { name = "python-dotenv", specifier = ">=1.0,<2.0" },
     { name = "rank-bm25", specifier = ">=0.2" },
     { name = "redis", specifier = ">=5.0" },
     { name = "tiktoken", specifier = ">=0.7" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30,<1.0" },
 ]
+provides-extras = ["crawler"]
 
 [[package]]
 name = "asttokens"
