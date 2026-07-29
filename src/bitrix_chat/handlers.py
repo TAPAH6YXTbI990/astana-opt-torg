@@ -7,10 +7,19 @@ from time import time
 from uuid import uuid4
 from urllib.request import Request, urlopen
 
+from .agent.agent import Agent
 from .app_auth import AppAuth, AppAuthStore
 from .bitrix_client import BitrixClient
-from .events import AppInstallEvent, ConnectorEvent, ConnectorMessage, IncomingEvent, OpenLineEvent, OpenLineMessage
-from .storage import InMemoryDedupStore
+from .events import (
+    AppInstallEvent,
+    ConnectorEvent,
+    ConnectorMessage,
+    IncomingEvent,
+    OpenLineEvent,
+    OpenLineMessage,
+)
+from .oauth_client import OAuthBitrixClient
+from .storage import DedupStore
 
 
 @dataclass(slots=True)
@@ -24,7 +33,7 @@ class EchoMessageHandler:
     def __init__(
         self,
         bitrix_client: BitrixClient,
-        dedup_store: InMemoryDedupStore,
+        dedup_store: DedupStore,
         bot_id: int,
     ) -> None:
         self._bitrix_client = bitrix_client
@@ -84,14 +93,16 @@ class EchoMessageHandler:
     def _make_dedup_key(self, event: IncomingEvent) -> str:
         if event.message_id is not None:
             return f"{event.event_type}:{event.bot_id}:{event.dialog_id}:{event.message_id}"
-        return f"{event.event_type}:{event.bot_id}:{event.dialog_id}:{event.message_text}"
+        return (
+            f"{event.event_type}:{event.bot_id}:{event.dialog_id}:{event.message_text}"
+        )
 
 
 class OpenLinesConnectorHandler:
     def __init__(
         self,
-        bitrix_client: object,
-        dedup_store: InMemoryDedupStore,
+        bitrix_client: BitrixClient,
+        dedup_store: DedupStore,
         auth_store: AppAuthStore,
         expected_application_token: str | None = None,
     ) -> None:
@@ -200,7 +211,9 @@ class OpenLinesConnectorHandler:
                 },
             )
 
-        return HandleResult(bool(handled), "echo_sent" if handled else "duplicate_event")
+        return HandleResult(
+            bool(handled), "echo_sent" if handled else "duplicate_event"
+        )
 
     def _make_dedup_key(self, event: ConnectorEvent, message: ConnectorMessage) -> str:
         return f"{event.event_type}:{event.connector_id}:{event.line_id}:{message.chat_id}:{message.im_message_id}"
@@ -209,62 +222,30 @@ class OpenLinesConnectorHandler:
 class OpenLineMessageHandler:
     def __init__(
         self,
-        bitrix_client: object,
-        dedup_store: InMemoryDedupStore,
+        bitrix_client: OAuthBitrixClient,
+        dedup_store: DedupStore,
         auth_store: AppAuthStore,
-        response_webhook_url: str,
+        agent: Agent,
     ) -> None:
         self._bitrix_client = bitrix_client
         self._dedup_store = dedup_store
         self._auth_store = auth_store
-        self._response_webhook_url = response_webhook_url
+        self._agent = agent
         self._logger = logging.getLogger(__name__)
 
-    def _request_external_answer(self, message_text: str, session_id: str) -> str:
-        payload = json.dumps(
-            {
-                "message": message_text,
-                "session_id": session_id,
-            },
-            ensure_ascii=False,
-        ).encode("utf-8")
-        request = Request(self._response_webhook_url, data=payload, method="POST")
-        request.add_header("Content-Type", "application/json")
-        request.add_header("Accept", "application/json")
+    def _get_agent_answer(self, message_text: str, session_id: str) -> str:
         self._logger.info(
-            "requesting external answer",
-            extra={
-                "url": self._response_webhook_url,
-                "body": {
-                    "message": message_text,
-                    "session_id": session_id,
-                },
-            },
+            "requesting agent answer",
+            extra={"session_id": session_id, "user_message": message_text[:100]},
         )
-        with urlopen(request, timeout=30) as response:
-            response_text = response.read().decode("utf-8", errors="replace")
+        answer = self._agent.invoke(message_text, session_id)
         self._logger.info(
-            "received external answer",
-            extra={
-                "url": self._response_webhook_url,
-                "response_len": len(response_text),
-                "response": response_text,
-            },
+            "received agent answer",
+            extra={"session_id": session_id, "answer": answer[:100]},
         )
-        response_text = response_text.strip()
-        if not response_text:
-            raise RuntimeError("External webhook returned empty response")
+        return answer
 
-        try:
-            data = json.loads(response_text)
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(f"External webhook returned invalid JSON: {response_text!r}") from exc
-        output = data.get("output")
-        if not isinstance(output, str):
-            raise RuntimeError("External webhook response missing string output")
-        return output
-
-    def handle(self, event: OpenLineEvent) -> HandleResult:
+    async def handle(self, event: OpenLineEvent) -> HandleResult:
         self._logger.info(
             "incoming openline event",
             extra={
@@ -273,8 +254,12 @@ class OpenLineMessageHandler:
                 "messages_count": len(event.messages),
                 "message_ids": [message.message_id for message in event.messages],
                 "chat_ids": [message.chat_id for message in event.messages],
-                "message_user_ids": [message.message_user_id for message in event.messages],
-                "connector_user_ids": [message.connector_user_id for message in event.messages],
+                "message_user_ids": [
+                    message.message_user_id for message in event.messages
+                ],
+                "connector_user_ids": [
+                    message.connector_user_id for message in event.messages
+                ],
                 "is_system_flags": [message.is_system for message in event.messages],
             },
         )
@@ -283,7 +268,11 @@ class OpenLineMessageHandler:
             return HandleResult(False, f"ignored_event:{event.event_type}")
 
         stored_auth = self._auth_store.load()
-        expected_token = stored_auth.application_token if stored_auth and stored_auth.application_token else ""
+        expected_token = (
+            stored_auth.application_token
+            if stored_auth and stored_auth.application_token
+            else ""
+        )
         if expected_token and event.application_token != expected_token:
             return HandleResult(False, "invalid_application_token")
 
@@ -300,6 +289,13 @@ class OpenLineMessageHandler:
                         "line_id": message.line_id,
                         "message_id": message.message_id,
                     },
+                )
+                continue
+
+            if message.connector_id != "vkgroup":
+                self._logger.info(
+                    "ignored message from non-vk connector",
+                    extra={"connector_id": message.connector_id},
                 )
                 continue
 
@@ -363,14 +359,21 @@ class OpenLineMessageHandler:
             ):
                 user_code = f"{message.connector_id}|{message.line_id}|{message.connector_chat_id}|{message.message_user_id}"
                 try:
-                    dialog = self._bitrix_client.get_openline_dialog(user_code)
-                    dialog_result = dialog.get("result") if isinstance(dialog, dict) else None
+                    dialog = await self._bitrix_client.get_openline_dialog(user_code)
+                    dialog_result = (
+                        dialog.get("result") if isinstance(dialog, dict) else None
+                    )
                     if isinstance(dialog_result, dict):
-                        resolved_chat_id = dialog_result.get("id") or dialog_result.get("ID")
+                        resolved_chat_id = dialog_result.get("id") or dialog_result.get(
+                            "ID"
+                        )
                         if isinstance(resolved_chat_id, int) and resolved_chat_id > 0:
                             target_chat_id = resolved_chat_id
                 except Exception:
-                    self._logger.exception("failed to resolve openline dialog", extra={"user_code": user_code})
+                    self._logger.exception(
+                        "failed to resolve openline dialog",
+                        extra={"user_code": user_code},
+                    )
             if target_chat_id is None:
                 self._logger.info(
                     "ignored openline message without target chat id",
@@ -382,19 +385,6 @@ class OpenLineMessageHandler:
                         "message_id": message.message_id,
                         "message_user_id": message.message_user_id,
                         "connector_user_id": message.connector_user_id,
-                    },
-                )
-                continue
-
-            if message.message_user_id is None:
-                self._logger.info(
-                    "ignored openline message without user id",
-                    extra={
-                        "chat_id": message.chat_id,
-                        "connector_chat_id": message.connector_chat_id,
-                        "connector_id": message.connector_id,
-                        "line_id": message.line_id,
-                        "message_id": message.message_id,
                     },
                 )
                 continue
@@ -411,17 +401,29 @@ class OpenLineMessageHandler:
                     "message_user_id": message.message_user_id,
                 },
             )
-            external_answer = self._request_external_answer(
-                message_text=reply_text,
-                session_id=str(message.message_user_id),
-            )
+            try:
+                external_answer = self._get_agent_answer(
+                    message_text=reply_text,
+                    session_id=str(message.message_user_id),
+                )
+            except Exception:
+                self._logger.exception(
+                    "failed to get agent answer",
+                    extra={
+                        "chat_id": message.chat_id,
+                        "message_id": message.message_id,
+                        "message_user_id": message.message_user_id,
+                    },
+                )
+                external_answer = (
+                    "Извините, временно не могу ответить. Попробуйте позже."
+                )
 
-            response = self._bitrix_client.send_openline_session_message(
+            response = await self._bitrix_client.send_openline_session_message(
                 chat_id=target_chat_id,
                 message=external_answer,
                 name="DEFAULT",
             )
-            history = self._bitrix_client.get_openline_session_history(target_chat_id)
             self._dedup_store.add(dedup_key)
             handled += 1
             self._logger.info(
@@ -436,11 +438,12 @@ class OpenLineMessageHandler:
                     "message_user_id": message.message_user_id,
                     "external_answer": external_answer,
                     "response": response,
-                    "history": history,
                 },
             )
 
-        return HandleResult(bool(handled), "echo_sent" if handled else "duplicate_event")
+        return HandleResult(
+            bool(handled), "echo_sent" if handled else "duplicate_event"
+        )
 
     def _make_dedup_key(self, event: OpenLineEvent, message: OpenLineMessage) -> str:
         return f"{event.event_type}:{message.connector_id}:{message.line_id}:{message.chat_id}:{message.message_id}"
@@ -450,7 +453,7 @@ class AppInstallHandler:
     def __init__(
         self,
         auth_store: AppAuthStore,
-        oauth_client: object,
+        oauth_client: OAuthBitrixClient,
         handler_url: str,
     ) -> None:
         self._auth_store = auth_store
@@ -458,8 +461,10 @@ class AppInstallHandler:
         self._handler_url = handler_url
         self._logger = logging.getLogger(__name__)
 
-    def handle(self, event: AppInstallEvent) -> HandleResult:
-        self._logger.info("incoming app install", extra={"event_type": event.event_type})
+    async def handle(self, event: AppInstallEvent) -> HandleResult:
+        self._logger.info(
+            "incoming app install", extra={"event_type": event.event_type}
+        )
 
         if event.event_type != "ONAPPINSTALL":
             return HandleResult(False, f"ignored_event:{event.event_type}")
@@ -482,8 +487,13 @@ class AppInstallHandler:
             return HandleResult(True, "app_installed_without_binding")
 
         try:
-            response = self._oauth_client.bind_event("ONOPENLINEMESSAGEADD", self._handler_url)
-        except Exception:
+            response = await self._oauth_client.bind_event(
+                "ONOPENLINEMESSAGEADD", self._handler_url
+            )
+        except Exception as exc:
+            if "already binded" in str(exc).lower():
+                self._logger.info("openline event already bound, skipping")
+                return HandleResult(True, "already_bound")
             self._logger.exception("failed to bind openline event")
             return HandleResult(False, "bind_failed")
 

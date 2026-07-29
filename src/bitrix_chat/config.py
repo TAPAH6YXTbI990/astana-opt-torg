@@ -16,7 +16,6 @@ class Settings:
     bitrix_client_secret: str
     bitrix_app_state_path: str
     bitrix_app_webhook_url: str
-    bitrix_openline_response_webhook_url: str
     log_level: str = "INFO"
 
 
@@ -29,11 +28,9 @@ def get_settings() -> Settings:
         inbound_secret=os.getenv("BITRIX_INBOUND_SECRET", "change-me").strip(),
         bitrix_client_id=os.getenv("BITRIX_CLIENT_ID", "").strip(),
         bitrix_client_secret=os.getenv("BITRIX_CLIENT_SECRET", "").strip(),
-        bitrix_app_state_path=os.getenv("BITRIX_APP_STATE_PATH", ".bitrix/app_auth.json").strip(),
-        bitrix_app_webhook_url=os.getenv("BITRIX_APP_WEBHOOK_URL", "").strip(),
-        bitrix_openline_response_webhook_url=os.getenv(
-            "BITRIX_OPENLINE_RESPONSE_WEBHOOK_URL",
-            "https://builder.smartybotapps.ru/webhook/amoBitrixTest",
+        bitrix_app_state_path=os.getenv(
+            "BITRIX_APP_STATE_PATH", ".bitrix/app_auth.json"
         ).strip(),
+        bitrix_app_webhook_url=os.getenv("BITRIX_APP_WEBHOOK_URL", "").strip(),
         log_level=os.getenv("LOG_LEVEL", "INFO").strip().upper(),
     )

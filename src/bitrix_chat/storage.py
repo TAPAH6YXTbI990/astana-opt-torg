@@ -3,7 +3,14 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 from threading import Lock
-from typing import Deque
+from typing import Deque, Protocol
+
+import redis
+
+
+class DedupStore(Protocol):
+    def seen(self, key: str) -> bool: ...
+    def add(self, key: str) -> None: ...
 
 
 @dataclass
@@ -27,3 +34,19 @@ class InMemoryDedupStore:
                 old_key = self._order.popleft()
                 self._items.discard(old_key)
 
+
+class RedisDedupStore:
+    def __init__(self, redis_url: str, ttl: int = 86400) -> None:
+        self._redis = redis.from_url(redis_url, decode_responses=True)
+        self._redis.ping()
+        self._prefix = "bitrix:dedup:"
+        self._ttl = ttl
+
+    def _key(self, key: str) -> str:
+        return f"{self._prefix}{key}"
+
+    def seen(self, key: str) -> bool:
+        return self._redis.exists(self._key(key)) > 0
+
+    def add(self, key: str) -> None:
+        self._redis.setex(self._key(key), self._ttl, "1")

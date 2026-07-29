@@ -15,7 +15,10 @@ def _iter_listish(value: Any) -> list[Any]:
         if not value:
             return []
         if all(str(key).isdigit() for key in value.keys()):
-            return [value[key] for key in sorted(value.keys(), key=lambda item: int(str(item)))]
+            return [
+                value[key]
+                for key in sorted(value.keys(), key=lambda item: int(str(item)))
+            ]
         return [value]
     return []
 
@@ -56,7 +59,9 @@ class IncomingEvent:
         raw_data = _as_mapping(_lookup(payload, "data"))
         bot_data = _as_mapping(_lookup(payload, "bot") or _lookup(raw_data, "bot"))
         chat_data = _as_mapping(_lookup(payload, "chat") or _lookup(raw_data, "chat"))
-        message_data = _as_mapping(_lookup(payload, "message") or _lookup(raw_data, "message"))
+        message_data = _as_mapping(
+            _lookup(payload, "message") or _lookup(raw_data, "message")
+        )
         user_data = _as_mapping(_lookup(payload, "user") or _lookup(raw_data, "user"))
 
         event_type = (
@@ -149,7 +154,9 @@ class IncomingEvent:
         )
 
 
-def _extract_bot_id(payload: dict[str, Any], raw_data: dict[str, Any], bot_data: dict[str, Any]) -> int | None:
+def _extract_bot_id(
+    payload: dict[str, Any], raw_data: dict[str, Any], bot_data: dict[str, Any]
+) -> int | None:
     candidate = (
         _lookup(bot_data, "id")
         or _lookup(bot_data, "ID")
@@ -237,7 +244,9 @@ class ConnectorEvent:
         event_id = _first_int(payload, ("eventId",), ("event_handler_id",))
         connector_id = _first_str(data, ("CONNECTOR",), ("connector",))
         line_id = _first_int(data, ("LINE",), ("line",))
-        application_token = _first_str(auth, ("application_token",), ("applicationToken",))
+        application_token = _first_str(
+            auth, ("application_token",), ("applicationToken",)
+        )
 
         messages_raw = _lookup(data, "MESSAGES")
         messages: list[ConnectorMessage] = []
@@ -268,7 +277,9 @@ class AppInstallEvent:
     def from_payload(cls, payload: dict[str, Any]) -> "AppInstallEvent":
         auth = _as_mapping(_lookup(payload, "auth"))
         event_type = str(_lookup(payload, "event") or "")
-        application_token = _first_str(auth, ("application_token",), ("applicationToken",))
+        application_token = _first_str(
+            auth, ("application_token",), ("applicationToken",)
+        )
         return cls(
             raw=payload,
             event_type=event_type,
@@ -281,11 +292,11 @@ class AppInstallEvent:
 class OpenLineMessage:
     connector_id: str | None
     line_id: int | None
-    chat_id: int | None
-    connector_chat_id: int | None
+    chat_id: str | None
+    connector_chat_id: str | None
     connector_user_id: int | None
     message_user_id: int | None
-    message_id: int | None
+    message_id: str | None
     text: str | None
     is_system: bool
 
@@ -304,7 +315,9 @@ class OpenLineEvent:
         auth = _as_mapping(_lookup(payload, "auth"))
         event_type = str(_lookup(payload, "event") or "")
         event_id = _first_int(payload, ("eventId",), ("event_handler_id",))
-        application_token = _first_str(auth, ("application_token",), ("applicationToken",))
+        application_token = _first_str(
+            auth, ("application_token",), ("applicationToken",)
+        )
 
         messages_raw = _lookup(data, "DATA")
         messages: list[OpenLineMessage] = []
@@ -332,11 +345,11 @@ def _parse_openline_message(item: Any) -> OpenLineMessage | None:
 
     connector_id = _first_str(connector, ("connector_id",), ("connectorId",))
     line_id = _first_int(connector, ("line_id",), ("lineId",))
-    connector_chat_id = _first_int(connector, ("chat_id",), ("chatId",))
+    connector_chat_id = _first_str(connector, ("chat_id",), ("chatId",))
     connector_user_id = _first_int(connector, ("user_id",), ("userId",))
-    chat_id = _first_int(chat, ("id",))
+    chat_id = _first_str(chat, ("id",))
     message_user_id = _first_int(message, ("user_id",), ("userId",))
-    message_id = _first_int(message, ("id",))
+    message_id = _first_str(message, ("id",))
     text = _first_str(message, ("text",))
     is_system = _first_bool(message, ("system",), ("is_system",), ("isSystem",))
 

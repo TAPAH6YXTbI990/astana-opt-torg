@@ -4,10 +4,8 @@ from dataclasses import asdict, dataclass
 import json
 import logging
 from typing import Any
-from urllib.error import HTTPError
-from urllib.error import URLError
-from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+
+import httpx
 
 from .app_auth import AppAuth, AppAuthStore
 
@@ -26,7 +24,11 @@ _SENSITIVE_KEYS = {
 def _sanitize_for_log(value: Any) -> Any:
     if isinstance(value, dict):
         return {
-            key: ("***" if str(key).lower() in _SENSITIVE_KEYS else _sanitize_for_log(item))
+            key: (
+                "***"
+                if str(key).lower() in _SENSITIVE_KEYS
+                else _sanitize_for_log(item)
+            )
             for key, item in value.items()
         }
     if isinstance(value, list):
@@ -47,31 +49,32 @@ class OAuthBitrixClient:
             raise RuntimeError("Application auth is not installed yet")
         return auth
 
-    def _refresh_auth(self, auth: AppAuth) -> AppAuth:
-        payload = urlencode(
-            {
-                "grant_type": "refresh_token",
-                "client_id": self.client_id,
-                "client_secret": self.client_secret,
-                "refresh_token": auth.refresh_token,
-            }
-        ).encode("utf-8")
-        request = Request(
-            "https://oauth.bitrix24.tech/oauth/token/",
-            data=payload,
-            headers={"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"},
-            method="POST",
-        )
-        try:
-            with urlopen(request, timeout=30) as response:
-                data = json.loads(response.read().decode("utf-8", errors="replace"))
-        except URLError as exc:
-            raise RuntimeError(f"OAuth token refresh failed: {exc}") from exc
+    async def _refresh_auth(self, auth: AppAuth) -> AppAuth:
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(
+                "https://oauth.bitrix24.tech/oauth/token/",
+                data={
+                    "grant_type": "refresh_token",
+                    "client_id": self.client_id,
+                    "client_secret": self.client_secret,
+                    "refresh_token": auth.refresh_token,
+                },
+                headers={"Accept": "application/json"},
+            )
+            if not response.is_success:
+                self._logger.error(
+                    "oauth refresh failed status=%s body=%s",
+                    response.status_code,
+                    response.text,
+                )
+            response.raise_for_status()
+            data = response.json()
+
         refreshed = AppAuth.from_mapping({**asdict(auth), **data})
         self.auth_store.save(refreshed)
         return refreshed
 
-    def call(self, method: str, params: dict[str, Any]) -> object:
+    async def call(self, method: str, params: dict[str, Any]) -> object:
         auth = self._get_auth()
         endpoint = auth.client_endpoint.rstrip("/")
         url = f"{endpoint}/{method}.json"
@@ -82,27 +85,24 @@ class OAuthBitrixClient:
             url,
             json.dumps(_sanitize_for_log(payload), ensure_ascii=False),
         )
-        body = json.dumps(payload).encode("utf-8")
-        request = Request(
-            url,
-            data=body,
-            headers={"Content-Type": "application/json", "Accept": "application/json"},
-            method="POST",
-        )
-        try:
-            with urlopen(request, timeout=30) as response:
-                response_text = response.read().decode("utf-8", errors="replace")
-                self._logger.info(
-                    "bitrix rest response method=%s url=%s body=%s",
-                    method,
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(
+                url,
+                json=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+            )
+
+            if response.status_code == 401:
+                self._logger.warning(
+                    "received 401 from %s, refreshing token. response body=%s",
                     url,
-                    response_text,
+                    response.text,
                 )
-                return json.loads(response_text)
-        except HTTPError as exc:
-            response_body = exc.read().decode("utf-8", errors="replace")
-            if exc.code == 401:
-                refreshed = self._refresh_auth(auth)
+                refreshed = await self._refresh_auth(auth)
                 retry_payload = {**params, "auth": refreshed.access_token}
                 self._logger.info(
                     "bitrix rest retry method=%s url=%s body=%s",
@@ -110,34 +110,44 @@ class OAuthBitrixClient:
                     url,
                     json.dumps(_sanitize_for_log(retry_payload), ensure_ascii=False),
                 )
-                retry_body = json.dumps(retry_payload).encode("utf-8")
-                retry_request = Request(
+                retry_response = await client.post(
                     url,
-                    data=retry_body,
-                    headers={"Content-Type": "application/json", "Accept": "application/json"},
-                    method="POST",
+                    json=retry_payload,
+                    headers={
+                        "Content-Type": "application/json",
+                        "Accept": "application/json",
+                    },
                 )
-                try:
-                    with urlopen(retry_request, timeout=30) as response:
-                        response_text = response.read().decode("utf-8", errors="replace")
-                        self._logger.info(
-                            "bitrix rest response method=%s url=%s body=%s",
-                            method,
-                            url,
-                            response_text,
-                        )
-                        return json.loads(response_text)
-                except URLError as retry_exc:
-                    raise RuntimeError(f"REST retry failed after token refresh: {retry_exc}") from retry_exc
-            raise RuntimeError(f"REST call failed with HTTP {exc.code}: {response_body}") from exc
+                retry_response.raise_for_status()
+                response_text = retry_response.text
+                self._logger.info(
+                    "bitrix rest response method=%s url=%s body=%s",
+                    method,
+                    url,
+                    response_text,
+                )
+                return json.loads(response_text)
 
-    def bind_event(self, event: str, handler: str) -> object:
-        response = self.call("event.bind", {"event": event, "handler": handler})
-        self._logger.info("bound event", extra={"event": event, "handler": handler, "response": response})
+            response.raise_for_status()
+            response_text = response.text
+            self._logger.info(
+                "bitrix rest response method=%s url=%s body=%s",
+                method,
+                url,
+                response_text,
+            )
+            return json.loads(response_text)
+
+    async def bind_event(self, event: str, handler: str) -> object:
+        response = await self.call("event.bind", {"event": event, "handler": handler})
+        self._logger.info(
+            "bound event",
+            extra={"event": event, "handler": handler, "response": response},
+        )
         return response
 
-    def get_openline_dialog(self, user_code: str) -> object:
-        response = self.call(
+    async def get_openline_dialog(self, user_code: str) -> object:
+        response = await self.call(
             "imopenlines.dialog.get",
             {
                 "USER_CODE": user_code,
@@ -149,8 +159,10 @@ class OAuthBitrixClient:
         )
         return response
 
-    def send_connector_messages(self, connector: str, line: int, messages: list[dict[str, object]]) -> object:
-        response = self.call(
+    async def send_connector_messages(
+        self, connector: str, line: int, messages: list[dict[str, object]]
+    ) -> object:
+        response = await self.call(
             "imconnector.send.messages",
             {
                 "CONNECTOR": connector,
@@ -160,12 +172,19 @@ class OAuthBitrixClient:
         )
         self._logger.info(
             "sent openlines message",
-            extra={"connector": connector, "line": line, "messages_count": len(messages), "response": response},
+            extra={
+                "connector": connector,
+                "line": line,
+                "messages_count": len(messages),
+                "response": response,
+            },
         )
         return response
 
-    def send_connector_delivery(self, connector: str, line: int, messages: list[dict[str, object]]) -> object:
-        response = self.call(
+    async def send_connector_delivery(
+        self, connector: str, line: int, messages: list[dict[str, object]]
+    ) -> object:
+        response = await self.call(
             "imconnector.send.status.delivery",
             {
                 "CONNECTOR": connector,
@@ -175,12 +194,19 @@ class OAuthBitrixClient:
         )
         self._logger.info(
             "sent openlines delivery",
-            extra={"connector": connector, "line": line, "messages_count": len(messages), "response": response},
+            extra={
+                "connector": connector,
+                "line": line,
+                "messages_count": len(messages),
+                "response": response,
+            },
         )
         return response
 
-    def send_openline_session_message(self, chat_id: int, message: str, name: str = "DEFAULT") -> object:
-        response = self.call(
+    async def send_openline_session_message(
+        self, chat_id: int | str, message: str, name: str = "DEFAULT"
+    ) -> object:
+        response = await self.call(
             "imopenlines.bot.session.message.send",
             {
                 "CHAT_ID": int(chat_id),
@@ -194,8 +220,8 @@ class OAuthBitrixClient:
         )
         return response
 
-    def get_openline_session_history(self, chat_id: int) -> object:
-        response = self.call(
+    async def get_openline_session_history(self, chat_id: int | str) -> object:
+        response = await self.call(
             "imopenlines.session.history.get",
             {
                 "CHAT_ID": int(chat_id),

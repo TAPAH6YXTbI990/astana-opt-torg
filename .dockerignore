@@ -1,0 +1,11 @@
+.venv/
+.git/
+.ruff_cache/
+__pycache__/
+*.pyc
+.env
+.bitrix/
+knowledge_index/
+*.egg-info/
+deploy/
+docker-compose.override.yml

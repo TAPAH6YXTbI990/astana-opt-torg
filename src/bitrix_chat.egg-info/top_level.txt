@@ -1,1 +1,2 @@
 bitrix_chat
+knowledge_index

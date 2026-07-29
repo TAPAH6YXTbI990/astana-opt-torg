@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+.venv/
+
+# Environment variables
+.env
+
+# Ruff cache
+.ruff_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Bitrix auth tokens (contains secrets)
+.bitrix/
+
+# Knowledge base index (generated, large)
+knowledge_index/
+
+# Project-specific temp files
+nul
+product_urls*.txt
+product_urls*.md
+crawler_config.toml
+code_for_bitrix24_fast_api.txt
+Документация/

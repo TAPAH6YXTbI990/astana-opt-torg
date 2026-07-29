@@ -1,9 +1,9 @@
 {
-  "access_token": "a4ab226a008502580084e3420000000d000007e72fa54e0e450a47eb6d30f111ca58b6",
-  "refresh_token": "942a4a6a008502580084e3420000000d0000071eab40af7c6ff3aa7a24e80b5e8c6826",
-  "client_endpoint": "https://b24-6mwgov.bitrix24.ru/rest/",
+  "access_token": "ecc7686a008f467200620ee00000a1c7000007be1d4dfc16dd4a964e32d5f3d26f19eb",
+  "refresh_token": "dc46906a008f467200620ee00000a1c700000777e5d20d077397564f40974eb4cd73cc",
+  "client_endpoint": "https://b24.astopt.ru/rest/",
   "server_endpoint": "https://oauth.bitrix24.tech/rest/",
   "domain": "oauth.bitrix24.tech",
-  "member_id": "6c2a7a560d48f09f58bb57bcd48d52f1",
-  "application_token": "7c800c5f39390a16a5b1761543802d22"
+  "member_id": "6be421d8bd92169c9f1df0b179afe9c5",
+  "application_token": "56e466053dfb0429c018b310c5a2d865"
 }

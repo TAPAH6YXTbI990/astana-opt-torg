@@ -1,3 +1,5 @@
 [console_scripts]
 bitrix-bind-openlines = bitrix_chat.bind_openlines:main
+bitrix-crawl = bitrix_chat.crawler.cli:main
+bitrix-embed = bitrix_chat.knowledge.embeddings:main
 bitrix-register-bot = bitrix_chat.register_bot:main

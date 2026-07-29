@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "bitrix-chat"
+name = "astana-chat"
 version = "0.1.0"
 description = "Webhook bot for Bitrix24 chats"
 requires-python = ">=3.12"
@@ -12,6 +12,16 @@ dependencies = [
     "fast-bitrix24>=1.8.12",
     "python-dotenv>=1.0,<2.0",
     "uvicorn[standard]>=0.30,<1.0",
+    "docling>=2.0",
+    "httpx>=0.27",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.0",
+    "langchain-openai>=0.3",
+    "langchain-core>=0.3",
+    "redis>=5.0",
+    "faiss-cpu>=1.8",
+    "rank-bm25>=0.2",
+    "tiktoken>=0.7",
 ]
 
 [tool.setuptools]
@@ -23,3 +33,5 @@ where = ["src"]
 [project.scripts]
 bitrix-register-bot = "bitrix_chat.register_bot:main"
 bitrix-bind-openlines = "bitrix_chat.bind_openlines:main"
+bitrix-crawl = "bitrix_chat.crawler.cli:main"
+bitrix-embed = "bitrix_chat.knowledge.embeddings:main"
