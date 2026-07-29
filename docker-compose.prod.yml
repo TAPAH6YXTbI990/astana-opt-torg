@@ -1,10 +1,8 @@
 # Production compose - extends base docker-compose.yml
 # Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# NOTE: -f flags skip docker-compose.override.yml automatically
 
 services:
-  app:
-    ports: []
-
   nginx:
     container_name: astana-nginx
     image: nginx:alpine

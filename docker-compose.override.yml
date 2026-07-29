@@ -1,0 +1,8 @@
+# Local development - auto-loaded by `docker compose up`
+# Exposes port 8080 for ngrok
+# NOT loaded when using `-f` flags explicitly
+
+services:
+  app:
+    ports:
+      - "8080:8000"
