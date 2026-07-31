@@ -2,6 +2,7 @@ FROM python:3.12-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV NPY_DISABLE_CPU_FEATURES=X86_V2
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \

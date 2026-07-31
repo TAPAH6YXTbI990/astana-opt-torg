@@ -233,17 +233,24 @@ class OpenLineMessageHandler:
         self._agent = agent
         self._logger = logging.getLogger(__name__)
 
-    def _get_agent_answer(self, message_text: str, session_id: str) -> str:
+    def _get_agent_answer(
+        self, message_text: str, session_id: str
+    ) -> tuple[str, bool, str | None]:
         self._logger.info(
             "requesting agent answer",
             extra={"session_id": session_id, "user_message": message_text[:100]},
         )
-        answer = self._agent.invoke(message_text, session_id)
+        result = self._agent.invoke(message_text, session_id)
         self._logger.info(
             "received agent answer",
-            extra={"session_id": session_id, "answer": answer[:100]},
+            extra={
+                "session_id": session_id,
+                "answer": result.answer[:100],
+                "handoff": result.handoff,
+                "handoff_reason": result.handoff_reason,
+            },
         )
-        return answer
+        return result.answer, result.handoff, result.handoff_reason
 
     async def handle(self, event: OpenLineEvent) -> HandleResult:
         self._logger.info(
@@ -402,10 +409,18 @@ class OpenLineMessageHandler:
                 },
             )
             try:
-                external_answer = self._get_agent_answer(
+                external_answer, handoff, handoff_reason = self._get_agent_answer(
                     message_text=reply_text,
                     session_id=str(message.message_user_id),
                 )
+                if handoff:
+                    self._logger.info(
+                        "handoff triggered",
+                        extra={
+                            "session_id": str(message.message_user_id),
+                            "reason": handoff_reason,
+                        },
+                    )
             except Exception:
                 self._logger.exception(
                     "failed to get agent answer",

@@ -1,79 +1,112 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 
 from .config import OPENROUTER_API_KEY, OPENROUTER_MODEL
 from .history import DialogHistory
+from .profile import ClientProfile, ProfileStore
+from .tools import get_tools
 
 logger = logging.getLogger(__name__)
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
-SYSTEM_PROMPT = """Ты — помощник компании «АстанаОптТорг» (оптовая торговля детской одеждой и головными уборами).
+SYSTEM_PROMPT = """Ты — AI-ассистент компании «АстанаОптТорг» (оптовая торговля детской одеждой и головными уборами).
 
-Твоя роль:
-- Отвечать на вопросы клиентов о товарах, ассортименте, характеристиках
-- Помогать с выбором товаров
-- Информировать о условиях сотрудничества
+=== СЦЕНАРИИ РАБОТЫ ===
 
-О компании:
-- Оптовая торговля детской одеждой, головными уборами и товарами для новорожденных.
-- Работаем 11 лет, склад 2000 м², более 50 000 артикулов.
-- Сегмент: эконом / эконом+. Качественный трикотаж, не ширпотреб. 
-- Собственные бренды + поставщики из Турции, Узбекистана, Киргизии, Китая и России.
-- Работаем только с предпринимателями (юрлицами и ИП). Розничной продажи нет.
+А. ПЕРВИЧНАЯ ОБРАБОТКА
+Когда клиент пишет впервые:
+1. Поприветствуй и представься
+2. Определи тему обращения (товары, условия, доставка, сотрудничество)
+3. Ответь на вопрос на основе базы знаний
+4. Задай уточняющий вопрос если не хватает информации
+5. Если клиент не представился — попроси назвать имя
+6. Сохрани данные клиента через update_client_profile
 
-Ассортимент:
-- Детская одежда от 0 до 12 лет (отдельные позиции до 16 лет).
-- Головные уборы для всей семьи: кепки, панамы, шляпы, шапки (в т.ч. для взрослых).
-- Школьная форма: рубашки, блузки, брюки, слаксы, жилетки, джемперы, юбки.
-- Новорождённые: боди, ползунки, распашонки, комбинезоны, костюмчики.
-- Нижнее бельё: трусики, майки, топики, бра для девочек.
-- Носки (от новорожденных до подростков), пижамы.
-- Спортивная одежда: футболки, шорты, джоггеры, джинсы.
-- Товары для малышей: пустышки, бутылочки, силиконовая посуда.
-- Для принтов: однотонные футболки (100% хлопок, 190 г/м²) и головные уборы.
-- Обувь не представлена, кроме чешек и балеток (танцевальные/гимнастические).
+Б. КОНСУЛЬТАЦИЯ ПО АССОРТИМЕНТУ
+Когда клиент интересуется товарами:
+1. Консультируй на основе базы знаний
+2. Уточни категорию, объём, параметры интересующего товара
+3. Если точных данных нет — скажи что передашь запрос менеджеру
+4. Сохрани информацию по запросу в профиль клиента
 
-Условия закупа:
-- Только опт. Продажа осуществляется упаковками / линейками (размерный ряд или несколько цветов в упаковке). Поштучно не продаём.
-- Минимальная сумма заказа: 50 000 тенге (Казахстан) / 10 000 рублей (Россия).
-- На складе нельзя примерять товар и вскрывать упаковки.
+В. КВАЛИФИКАЦИЯ КЛИЕНТА
+При выявлении интереса к закупке, уточни:
+- Страна и город клиента
+- Формат: магазин, маркетплейс, оптовик, розничный покупатель, партнёр
+- Интересующие категории товаров
+- Предполагаемый объём закупки
+- Готовность к дальнейшему общению с менеджером
+Сохрани все данные через update_client_profile. Сформируй краткое резюме.
 
-Доставка:
-- Казахстан: Каспи Почта (экономично, ~5 дней), автобусом (быстро, оставляют на автовокзале), InDriver / собственные водители (день в день, дороже). По Астане — бесплатная доставка от 100 000 тенге.
-- Россия: транспортные компании (СДЭК, Энергия, DPD, ПЭК и др.), ~7–10 дней, стоимость рассчитывается по весу/габаритам.
+Г. ПЕРЕДАЧА МЕНЕДЖЕРУ
+Вызывай request_handoff когда:
+- Клиент просит связаться с живым специалистом
+- Вопрос отсутствует в базе знаний
+- Нужен индивидуальный расчёт
+- Нужно подтверждение наличия, цены или условий
+- Клиент готов перейти к оформлению заказа
+- Запрос нестандартный или требует ручной обработки
 
-Оплата:
-- Казахстан: перевод на Каспи, наличные при получении (через водителя/автобус).
-- Россия: перевод на карту физлица в рублях или на расчётный счёт (+7,77% налог).
-- Рассрочки нет. Скидки от 100 000 тенге и выше (индивидуально, согласовывается с руководством).
+=== О КОМПАНИИ ===
+- Оптовая торговля детской одеждой, головными уборами и товарами для новорожденных
+- 11 лет работы, склад 2000 м², более 50 000 артикулов
+- Сегмент: эконом / эконом+. Качественный трикотаж
+- Собственные бренды + поставщики из Турции, Узбекистана, Киргизии, Китая и России
+- Работаем только с предпринимателями (юрлицами и ИП). Розничной продажи нет
 
-Маркировка (для клиентов из РФ):
-- Оформляем «Честный ЗНАК». Дополнительная наценка ~11–13 ₽ за единицу товара.
-- УПД и маркировка отправляются через Диадок. В документах указываются реальные размеры, цвета и производитель.
+=== АССОРТИМЕНТ ===
+- Детская одежда от 0 до 12 лет (отдельные позиции до 16 лет)
+- Головные уборы для всей семьи: кепки, панамы, шляпы, шапки
+- Школьная форма: рубашки, блузки, брюки, слаксы, жилетки, джемперы, юбки
+- Новорождённые: боди, ползунки, распашонки, комбинезоны, костюмчики
+- Нижнее бельё, носки, пижамы, спортивная одежда
+- Товары для малышей: пустышки, бутылочки, силиконовая посуда
+- Для принтов: однотонные футболки (100% хлопок, 190 г/м²)
 
-Работа с клиентом:
-- Основные каналы: Instagram, Telegram, WhatsApp. Сайт есть, но частично заполнен (не весь ассортимент).
-- Можем отправить актуальные фото и цены по запросу в мессенджеры.
-- Доступен видеозвонок на склад для показа ассортимента и отбора товара.
+=== УСЛОВИЯ ЗАКУПА ===
+- Только опт. Продажа упаковками / линейками. Поштучно не продаём
+- Минимальная сумма заказа: 50 000 тенге (КЗ) / 10 000 рублей (РФ)
+- На складе нельзя примерять товар и вскрывать упаковки
 
-Правила:
+=== ДОСТАВКА ===
+- Казахстан: Каспи Почта (~5 дней), автобусом (быстро), InDriver / водители (день в день)
+- По Астане — бесплатная доставка от 100 000 тенге
+- Россия: транспортные компании (СДЭК, Энергия, DPD, ПЭК), ~7–10 дней
+
+=== ОПЛАТА ===
+- Казахстан: перевод на Каспи, наличные при получении
+- Россия: перевод на карту физлица в рублях или на расчётный счёт (+7,77% налог)
+- Рассрочки нет. Скидки от 100 000 тенге (индивидуально)
+
+=== МАРКИРОВКА (для РФ) ===
+- Оформляем «Честный ЗНАК». Наценка ~11–13 ₽ за единицу
+
+=== КАНАЛЫ СВЯЗИ ===
+Instagram, Telegram, WhatsApp, MAX.
+Можем отправить актуальные фото и цены по запросу.
+Доступен видеозвонок на склад.
+
+=== ПРАВИЛА ===
 - Отвечай кратко, по делу, на русском языке
-- Если не знаешь ответ — скажи, что нужно уточнить у менеджера по телефону +7 (702) 729-58-42
+- Учитывай местоположение и тип бизнеса клиента при формировании ответа
 - Не выдумывай информацию о ценах, наличии, условиях — говори только то, что знаешь точно
-- Будь вежлив и дружелюбен"""
+- Если не знаешь ответ — предложи передать менеджеру
+- Будь вежлив и дружелюбен
+- Всегда вызывай update_client_profile когда клиент сообщает данные о себе
+- Для передачи менеджеру вызывай request_handoff с описанием причины"""
 
-RAG_PROMPT_SUFFIX = """
 
---- КОНТЕКСТ ИЗ БАЗЫ ЗНАНИЙ ---
-{context}
---- КОНЕЦ КОНТЕКСТА ---
-
-Используй информацию выше для ответа. Если контекст не содержит нужной информации — скажи об этом."""
+@dataclass
+class AgentResult:
+    answer: str
+    handoff: bool = False
+    handoff_reason: str | None = None
 
 
 class Agent:
@@ -85,7 +118,10 @@ class Agent:
             temperature=0.7,
         )
         self._history = DialogHistory()
+        self._profile_store = ProfileStore()
         self._retriever = None
+        self._tools = get_tools()
+        self._llm_with_tools = self._llm.bind_tools(self._tools)
 
     def _get_retriever(self):
         if self._retriever is None:
@@ -95,7 +131,7 @@ class Agent:
                 self._retriever = get_retriever()
             except Exception:
                 logger.exception("Failed to load retriever")
-                self._retriever = False  # sentinel: don't retry
+                self._retriever = False
         return self._retriever if self._retriever is not False else None
 
     def _retrieve_context(self, query: str) -> str:
@@ -114,16 +150,62 @@ class Agent:
             logger.exception("Retrieval failed")
             return ""
 
-    def invoke(self, message: str, session_id: str) -> str:
-        history = self._history.get_history(session_id)
+    def _process_tool_calls(
+        self, ai_message: AIMessage, session_id: str
+    ) -> tuple[bool, str | None]:
+        handoff = False
+        handoff_reason = None
 
-        # Retrieve relevant context
+        if not ai_message.tool_calls:
+            return handoff, handoff_reason
+
+        tools_by_name = {t.name: t for t in self._tools}
+
+        for tc in ai_message.tool_calls:
+            tool_name = tc["name"]
+            tool_args = tc["args"]
+            tool = tools_by_name.get(tool_name)
+
+            if tool is None:
+                continue
+
+            if "session_id" not in tool_args:
+                tool_args["session_id"] = session_id
+
+            result = tool.invoke(tool_args)
+            logger.info(
+                "tool executed",
+                extra={
+                    "session_id": session_id,
+                    "tool": tool_name,
+                    "args": str(tool_args)[:200],
+                },
+            )
+
+            if tool_name == "request_handoff":
+                handoff = True
+                handoff_reason = tool_args.get("reason", "")
+
+        return handoff, handoff_reason
+
+    def invoke(self, message: str, session_id: str) -> AgentResult:
+        history = self._history.get_history(session_id)
+        profile = self._profile_store.get(session_id)
+
         context = self._retrieve_context(message)
 
-        # Build system prompt
         system_text = SYSTEM_PROMPT
+
+        profile_text = profile.format_for_prompt()
+        if profile_text:
+            system_text += "\n\n--- ДАННЫЕ О КЛИЕНТЕ ---\n"
+            system_text += profile_text
+            system_text += "\n--- КОНЕЦ ДАННЫХ ---"
+
         if context:
-            system_text += RAG_PROMPT_SUFFIX.format(context=context)
+            system_text += "\n\n--- КОНТЕКСТ ИЗ БАЗЫ ЗНАНИЙ ---\n"
+            system_text += context
+            system_text += "\n--- КОНЕЦ КОНТЕКСТА ---"
 
         messages = [SystemMessage(content=system_text)]
         for msg in history:
@@ -135,8 +217,25 @@ class Agent:
 
         self._history.save_message(session_id, "user", message)
 
-        response = self._llm.invoke(messages)
-        answer = response.content
+        response = self._llm_with_tools.invoke(messages)
+
+        handoff, handoff_reason = self._process_tool_calls(response, session_id)
+
+        if response.tool_calls:
+            messages.append(response)
+            for tc in response.tool_calls:
+                tool_name = tc["name"]
+                tool_args = tc["args"]
+                messages.append(
+                    ToolMessage(
+                        content=f"Выполнено: {tool_name}",
+                        tool_call_id=tc["id"],
+                    )
+                )
+            final_response = self._llm_with_tools.invoke(messages)
+            answer = final_response.content
+        else:
+            answer = response.content
 
         self._history.save_message(session_id, "assistant", answer)
 
@@ -147,6 +246,9 @@ class Agent:
                 "user_message": message[:100],
                 "answer": answer[:100],
                 "rag_context_used": bool(context),
+                "handoff": handoff,
             },
         )
-        return answer
+        return AgentResult(
+            answer=answer, handoff=handoff, handoff_reason=handoff_reason
+        )

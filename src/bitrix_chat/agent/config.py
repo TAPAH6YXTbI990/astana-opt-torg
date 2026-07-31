@@ -9,6 +9,7 @@ OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 HISTORY_TTL = int(os.getenv("HISTORY_TTL", "86400"))
 HISTORY_LIMIT = int(os.getenv("HISTORY_LIMIT", "10"))
+PROFILE_TTL = int(os.getenv("PROFILE_TTL", "604800"))  # 7 days
 
 # RAG settings
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "openai/text-embedding-3-small")
