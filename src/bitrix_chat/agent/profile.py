@@ -33,7 +33,7 @@ class ClientProfile:
     def to_dict(self) -> dict:
         d = asdict(self)
         d["interests"] = json.dumps(d["interests"], ensure_ascii=False)
-        return d
+        return {k: v for k, v in d.items() if v is not None}
 
     @classmethod
     def from_dict(cls, data: dict) -> ClientProfile:
