@@ -257,3 +257,21 @@ class OAuthBitrixClient:
             extra={"lead_id": lead_id, "success": success, "response": response},
         )
         return bool(success)
+
+    async def add_timeline_comment(self, lead_id: int, comment: str) -> int | None:
+        response = await self.call(
+            "crm.timeline.comment.add",
+            {
+                "fields": {
+                    "ENTITY_ID": lead_id,
+                    "ENTITY_TYPE": "lead",
+                    "COMMENT": comment,
+                }
+            },
+        )
+        comment_id = response.get("result") if isinstance(response, dict) else None
+        self._logger.info(
+            "added timeline comment",
+            extra={"lead_id": lead_id, "comment_id": comment_id},
+        )
+        return comment_id

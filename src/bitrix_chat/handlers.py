@@ -496,21 +496,73 @@ class OpenLineMessageHandler:
         profile = self._profile_store.get(session_id)
         lead_id = profile.bitrix_lead_id
 
+        INTERESTS_MAP = {
+            "Детская одежда": 181,
+            "Головные уборы": 182,
+            "Новорождёнка": 183,
+            "Текстиль": 342,
+            "Игрушки": 344,
+        }
+
+        CLIENT_TYPE_MAP = {
+            "Маркетплейс": 166,
+            "Магазин": 167,
+            "Интернет Магазин": 168,
+            "Оптовик": 169,
+            "Физ клиент": 288,
+            "СП": 351,
+            "Принты": 404,
+            "СМС Рассылка (Школьная форма)": 407,
+        }
+
         fields: dict[str, object] = {}
+
         if profile.name:
             fields["name"] = profile.name
         if profile.company:
             fields["companyTitle"] = profile.company
-        if profile.city:
-            fields["city"] = profile.city
-        if profile.country:
-            fields["country"] = profile.country
-        if profile.contact_info:
-            fields["sourceDescription"] = profile.contact_info
 
-        summary = profile.format_for_prompt()
-        if summary:
-            fields["comments"] = summary
+        if profile.phone:
+            fields["fm"] = [
+                {"typeId": "PHONE", "valueType": "WORK", "value": profile.phone}
+            ]
+
+        if profile.city or profile.country:
+            city_country = ", ".join(filter(None, [profile.city, profile.country]))
+            fields["UF_CRM_1714116487673"] = city_country
+
+        interest_ids = []
+        if profile.interests:
+            for interest in profile.interests:
+                mapped = INTERESTS_MAP.get(interest)
+                if mapped is not None:
+                    interest_ids.append(mapped)
+        if interest_ids:
+            fields["UF_CRM_1714983959598"] = interest_ids
+
+        client_type_ids = []
+        if profile.client_type:
+            client_types = (
+                [profile.client_type]
+                if isinstance(profile.client_type, str)
+                else profile.client_type
+            )
+            for ct in client_types:
+                mapped = CLIENT_TYPE_MAP.get(ct)
+                if mapped is not None:
+                    client_type_ids.append(mapped)
+            if "Физ клиент" in client_types:
+                client_type_ids = [288]
+        if client_type_ids:
+            fields["UF_CRM_1714981399284"] = client_type_ids
+
+        comments_parts: list[str] = []
+        if profile.email:
+            comments_parts.append(f"email: {profile.email}")
+        if profile.volume:
+            comments_parts.append(f"объём: {profile.volume}")
+        if comments_parts:
+            fields["comments"] = "\n".join(comments_parts)
 
         if not fields:
             return
@@ -527,9 +579,27 @@ class OpenLineMessageHandler:
                 new_id = await self._bitrix_client.create_lead(fields)
                 if new_id:
                     self._profile_store.update(session_id, bitrix_lead_id=new_id)
+                    lead_id = new_id
                     self._logger.info(
                         "lead created on handoff",
                         extra={"session_id": session_id, "lead_id": new_id},
+                    )
+
+            if lead_id:
+                timeline_parts: list[str] = []
+                if profile.request_summary:
+                    timeline_parts.append(f"Суть запроса: {profile.request_summary}")
+                if profile.interest_level:
+                    timeline_parts.append(f"Степень интереса: {profile.interest_level}")
+                if profile.handoff_reason:
+                    timeline_parts.append(f"Причина передачи: {profile.handoff_reason}")
+                if timeline_parts:
+                    await self._bitrix_client.add_timeline_comment(
+                        lead_id, "\n".join(timeline_parts)
+                    )
+                    self._logger.info(
+                        "timeline comment added",
+                        extra={"session_id": session_id, "lead_id": lead_id},
                     )
         except Exception:
             self._logger.exception(

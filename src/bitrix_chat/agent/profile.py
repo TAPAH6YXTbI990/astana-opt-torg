@@ -19,6 +19,8 @@ class ClientProfile:
     name: str | None = None
     company: str | None = None
     contact_info: str | None = None
+    phone: str | None = None
+    email: str | None = None
     city: str | None = None
     country: str | None = None
     interests: list[str] = field(default_factory=list)
@@ -52,6 +54,8 @@ class ClientProfile:
             name=data.get("name"),
             company=data.get("company"),
             contact_info=data.get("contact_info"),
+            phone=data.get("phone"),
+            email=data.get("email"),
             city=data.get("city"),
             country=data.get("country"),
             interests=interests,
@@ -87,6 +91,10 @@ class ClientProfile:
             parts.append(f"Целевой интерес: {self.interest_level}")
         if self.contact_info:
             parts.append(f"Контакт: {self.contact_info}")
+        if self.phone:
+            parts.append(f"Телефон: {self.phone}")
+        if self.email:
+            parts.append(f"Email: {self.email}")
         if self.request_summary:
             parts.append(f"Суть запроса: {self.request_summary}")
         if self.extra:

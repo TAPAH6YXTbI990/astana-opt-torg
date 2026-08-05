@@ -18,6 +18,8 @@ def update_client_profile(
     name: str | None = None,
     company: str | None = None,
     contact_info: str | None = None,
+    phone: str | None = None,
+    email: str | None = None,
     city: str | None = None,
     country: str | None = None,
     interests: list[str] | None = None,
@@ -35,6 +37,10 @@ def update_client_profile(
         fields["company"] = company
     if contact_info is not None:
         fields["contact_info"] = contact_info
+    if phone is not None:
+        fields["phone"] = phone
+    if email is not None:
+        fields["email"] = email
     if city is not None:
         fields["city"] = city
     if country is not None:
