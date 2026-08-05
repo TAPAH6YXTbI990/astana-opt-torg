@@ -29,6 +29,7 @@ class ClientProfile:
     handoff_needed: bool = False
     handoff_reason: str | None = None
     extra: str | None = None
+    bitrix_lead_id: int | None = None
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -62,6 +63,9 @@ class ClientProfile:
             or data.get("handoff_needed") is True,
             handoff_reason=data.get("handoff_reason"),
             extra=data.get("extra"),
+            bitrix_lead_id=int(data["bitrix_lead_id"])
+            if data.get("bitrix_lead_id")
+            else None,
         )
 
     def format_for_prompt(self) -> str:

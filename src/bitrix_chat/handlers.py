@@ -8,6 +8,7 @@ from uuid import uuid4
 from urllib.request import Request, urlopen
 
 from .agent.agent import Agent
+from .agent.profile import ProfileStore
 from .app_auth import AppAuth, AppAuthStore
 from .bitrix_client import BitrixClient
 from .events import (
@@ -20,6 +21,19 @@ from .events import (
 )
 from .oauth_client import OAuthBitrixClient
 from .storage import DedupStore
+
+
+def _parse_lead_id(entity_data_1: str | None) -> int | None:
+    """Parse lead ID from entity_data_1 format: 'Y|LEAD|{id}|...'"""
+    if not entity_data_1:
+        return None
+    parts = entity_data_1.split("|")
+    if len(parts) >= 3 and parts[1] == "LEAD":
+        try:
+            return int(parts[2])
+        except (ValueError, TypeError):
+            return None
+    return None
 
 
 @dataclass(slots=True)
@@ -231,6 +245,7 @@ class OpenLineMessageHandler:
         self._dedup_store = dedup_store
         self._auth_store = auth_store
         self._agent = agent
+        self._profile_store = ProfileStore()
         self._logger = logging.getLogger(__name__)
 
     def _get_agent_answer(
@@ -376,6 +391,17 @@ class OpenLineMessageHandler:
                         )
                         if isinstance(resolved_chat_id, int) and resolved_chat_id > 0:
                             target_chat_id = resolved_chat_id
+                        entity_data_1 = dialog_result.get("entity_data_1")
+                        lead_id = _parse_lead_id(entity_data_1)
+                        if lead_id:
+                            session_id = str(message.message_user_id)
+                            self._profile_store.update(
+                                session_id, bitrix_lead_id=lead_id
+                            )
+                            self._logger.info(
+                                "saved lead_id from dialog",
+                                extra={"session_id": session_id, "lead_id": lead_id},
+                            )
                 except Exception:
                     self._logger.exception(
                         "failed to resolve openline dialog",
@@ -421,6 +447,9 @@ class OpenLineMessageHandler:
                             "reason": handoff_reason,
                         },
                     )
+                    await self._update_lead_on_handoff(
+                        str(message.message_user_id), reply_text
+                    )
             except Exception:
                 self._logger.exception(
                     "failed to get agent answer",
@@ -462,6 +491,51 @@ class OpenLineMessageHandler:
 
     def _make_dedup_key(self, event: OpenLineEvent, message: OpenLineMessage) -> str:
         return f"{event.event_type}:{message.connector_id}:{message.line_id}:{message.chat_id}:{message.message_id}"
+
+    async def _update_lead_on_handoff(self, session_id: str, user_message: str) -> None:
+        profile = self._profile_store.get(session_id)
+        lead_id = profile.bitrix_lead_id
+
+        fields: dict[str, object] = {}
+        if profile.name:
+            fields["name"] = profile.name
+        if profile.company:
+            fields["companyTitle"] = profile.company
+        if profile.city:
+            fields["city"] = profile.city
+        if profile.country:
+            fields["country"] = profile.country
+        if profile.contact_info:
+            fields["sourceDescription"] = profile.contact_info
+
+        summary = profile.format_for_prompt()
+        if summary:
+            fields["comments"] = summary
+
+        if not fields:
+            return
+
+        try:
+            if lead_id:
+                await self._bitrix_client.update_lead(lead_id, fields)
+                self._logger.info(
+                    "lead updated on handoff",
+                    extra={"session_id": session_id, "lead_id": lead_id},
+                )
+            else:
+                fields["title"] = f"AI-бот: {user_message[:80]}"
+                new_id = await self._bitrix_client.create_lead(fields)
+                if new_id:
+                    self._profile_store.update(session_id, bitrix_lead_id=new_id)
+                    self._logger.info(
+                        "lead created on handoff",
+                        extra={"session_id": session_id, "lead_id": new_id},
+                    )
+        except Exception:
+            self._logger.exception(
+                "failed to update/create lead on handoff",
+                extra={"session_id": session_id, "lead_id": lead_id},
+            )
 
 
 class AppInstallHandler:

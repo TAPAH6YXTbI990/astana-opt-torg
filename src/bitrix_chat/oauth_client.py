@@ -232,3 +232,28 @@ class OAuthBitrixClient:
             extra={"chat_id": chat_id, "response": response},
         )
         return response
+
+    async def create_lead(self, fields: dict[str, Any]) -> int | None:
+        response = await self.call(
+            "crm.item.add",
+            {"entityTypeId": 1, "fields": fields},
+        )
+        result = response.get("result", {})
+        lead_id = result.get("item", {}).get("id") if isinstance(result, dict) else None
+        self._logger.info(
+            "created CRM lead",
+            extra={"lead_id": lead_id, "response": response},
+        )
+        return lead_id
+
+    async def update_lead(self, lead_id: int, fields: dict[str, Any]) -> bool:
+        response = await self.call(
+            "crm.item.update",
+            {"entityTypeId": 1, "id": lead_id, "fields": fields},
+        )
+        success = response.get("result", False)
+        self._logger.info(
+            "updated CRM lead",
+            extra={"lead_id": lead_id, "success": success, "response": response},
+        )
+        return bool(success)
