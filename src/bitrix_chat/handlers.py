@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import logging
+import re
 from time import time
 from uuid import uuid4
 from urllib.request import Request, urlopen
@@ -34,6 +35,13 @@ def _parse_lead_id(entity_data_1: str | None) -> int | None:
         except (ValueError, TypeError):
             return None
     return None
+
+
+_HANDOFF_PATTERN = re.compile(
+    r"(менеджер|оператор|специалист|живой\s+человек|администратор|"
+    r"связать|соединить|передать\s+запрос)",
+    re.IGNORECASE,
+)
 
 
 @dataclass(slots=True)
@@ -442,6 +450,21 @@ class OpenLineMessageHandler:
                 if handoff:
                     self._logger.info(
                         "handoff triggered",
+                        extra={
+                            "session_id": str(message.message_user_id),
+                            "reason": handoff_reason,
+                        },
+                    )
+                    await self._update_lead_on_handoff(
+                        str(message.message_user_id), reply_text
+                    )
+                elif _HANDOFF_PATTERN.search(reply_text):
+                    handoff = True
+                    handoff_reason = (
+                        "Клиент запросил живого специалиста (regex fallback)"
+                    )
+                    self._logger.info(
+                        "handoff triggered via regex fallback",
                         extra={
                             "session_id": str(message.message_user_id),
                             "reason": handoff_reason,
