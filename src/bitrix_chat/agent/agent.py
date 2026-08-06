@@ -220,22 +220,15 @@ class Agent:
         handoff, handoff_reason = self._process_tool_calls(response, session_id)
 
         if response.tool_calls:
-            messages.append(response)
-            for tc in response.tool_calls:
-                tool_name = tc["name"]
-                tool_args = tc["args"]
-                messages.append(
-                    ToolMessage(
-                        content=f"Выполнено: {tool_name}",
-                        tool_call_id=tc["id"],
-                    )
-                )
-            messages.append(
-                HumanMessage(
-                    content="Данные клиента сохранены. Теперь ОБЯЗАТЕЛЬНО ответь на вопрос клиента."
-                )
-            )
-            final_response = self._llm_with_tools.invoke(messages)
+            clean_messages = [messages[0]]
+            for msg in messages[1:]:
+                if isinstance(msg, HumanMessage) and msg is not messages[-1]:
+                    clean_messages.append(msg)
+                elif isinstance(msg, AIMessage) and not msg.tool_calls:
+                    clean_messages.append(msg)
+            clean_messages.append(messages[-1])
+
+            final_response = self._llm_with_tools.invoke(clean_messages)
             answer = final_response.content
             if not answer or not answer.strip():
                 if handoff:

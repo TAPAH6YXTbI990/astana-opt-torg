@@ -496,6 +496,16 @@ class OpenLineMessageHandler:
                     )
 
                 profile = self._profile_store.get(session_id)
+                self._logger.info(
+                    "checking lead update condition",
+                    extra={
+                        "session_id": session_id,
+                        "handoff_needed": profile.handoff_needed,
+                        "lead_id": profile.bitrix_lead_id,
+                        "phone": bool(profile.phone),
+                        "email": bool(profile.email),
+                    },
+                )
                 if profile.handoff_needed:
                     await self._update_lead_on_handoff(session_id, reply_text)
             except Exception:
@@ -634,6 +644,10 @@ class OpenLineMessageHandler:
             fields["comments"] = "\n".join(comments_parts)
 
         if not fields:
+            self._logger.info(
+                "no fields to update in lead",
+                extra={"session_id": session_id, "lead_id": lead_id},
+            )
             return
 
         try:
