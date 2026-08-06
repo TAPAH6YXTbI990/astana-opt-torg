@@ -284,6 +284,11 @@ class Agent:
                 )
             final_response = self._llm_with_tools.invoke(messages)
             answer = final_response.content
+            if not answer or not answer.strip():
+                if handoff:
+                    answer = "Хорошо, я передам ваш запрос менеджеру. Ожидайте, с вами скоро свяжутся."
+                else:
+                    answer = "Спасибо за обращение! Чем ещё могу помочь?"
         else:
             answer = response.content
 
