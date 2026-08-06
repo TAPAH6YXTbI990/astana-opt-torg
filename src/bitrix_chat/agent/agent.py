@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
@@ -10,6 +11,11 @@ from .config import OPENROUTER_API_KEY, OPENROUTER_MODEL
 from .history import DialogHistory
 from .profile import ClientProfile, ProfileStore
 from .tools import get_tools
+
+_TOOL_CALL_PATTERN = re.compile(
+    r"(?:^|\n)\s*(?:update_client_profile|request_handoff)\s*\(\s*\{.*?\}\s*\)\s*(?:\n|$)",
+    re.DOTALL,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +103,7 @@ SYSTEM_PROMPT = """Ты — AI-ассистент компании «Астан�
 
 === КОНТАКТЫ ===
 Телефон для справок: +7 (775) 368-61-22
-Сайт: https://astopt.com"""
+Сайт: https://astopt.ru"""
 
 
 @dataclass
@@ -105,6 +111,14 @@ class AgentResult:
     answer: str
     handoff: bool = False
     handoff_reason: str | None = None
+
+
+def _clean_answer(text: str) -> str:
+    """Remove tool call patterns that the LLM may echo in its response."""
+    cleaned = _TOOL_CALL_PATTERN.sub("\n", text).strip()
+    if not cleaned:
+        return ""
+    return cleaned
 
 
 class Agent:
@@ -229,14 +243,20 @@ class Agent:
             clean_messages.append(messages[-1])
 
             final_response = self._llm.invoke(clean_messages)
-            answer = final_response.content
+            answer = (
+                final_response.content
+                if isinstance(final_response.content, str)
+                else ""
+            )
             if not answer or not answer.strip():
                 if handoff:
                     answer = "Хорошо, я передам ваш запрос менеджеру. Ожидайте, с вами скоро свяжутся."
                 else:
                     answer = "Спасибо за обращение! Чем ещё могу помочь?"
         else:
-            answer = response.content
+            answer = response.content if isinstance(response.content, str) else ""
+
+        answer = _clean_answer(answer)
 
         self._history.save_message(session_id, "assistant", answer)
 
