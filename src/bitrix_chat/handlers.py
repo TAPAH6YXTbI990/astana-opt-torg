@@ -484,7 +484,8 @@ class OpenLineMessageHandler:
                     )
 
                 profile = self._profile_store.get(session_id)
-                if profile.bitrix_lead_id and profile.handoff_needed:
+                has_contact = bool(profile.phone or profile.email)
+                if profile.handoff_needed and has_contact:
                     await self._update_lead_on_handoff(session_id, reply_text)
             except Exception:
                 self._logger.exception(
@@ -527,6 +528,37 @@ class OpenLineMessageHandler:
 
     def _make_dedup_key(self, event: OpenLineEvent, message: OpenLineMessage) -> str:
         return f"{event.event_type}:{message.connector_id}:{message.line_id}:{message.chat_id}:{message.message_id}"
+
+    def _build_lead_title(
+        self,
+        phone: str | None,
+        lead_data: dict[str, object] | None,
+        profile_name: str | None,
+        city: str | None,
+    ) -> str:
+        normalized = _normalize_phone(phone)
+        last4 = normalized[-4:] if normalized and len(normalized) >= 4 else "----"
+
+        first_name = ""
+        last_name = ""
+        if lead_data:
+            first_name = str(lead_data.get("name", "") or "").strip()
+            if not first_name:
+                first_name = str(lead_data.get("NAME", "") or "").strip()
+            last_name = str(lead_data.get("lastName", "") or "").strip()
+            if not last_name:
+                last_name = str(lead_data.get("LAST_NAME", "") or "").strip()
+
+        if not first_name and profile_name:
+            name_parts = profile_name.strip().split()
+            first_name = name_parts[0] if name_parts else ""
+            last_name = name_parts[1] if len(name_parts) > 1 else ""
+
+        full_name = f"{first_name} {last_name}".strip() or "----"
+        city_part = city or "----"
+        phone_part = normalized or "----"
+
+        return f"{last4} - {full_name} - {city_part} - {phone_part}"
 
     async def _update_lead_on_handoff(self, session_id: str, user_message: str) -> None:
         profile = self._profile_store.get(session_id)
@@ -603,21 +635,37 @@ class OpenLineMessageHandler:
             return
 
         try:
+            lead_data = None
+            if lead_id:
+                lead_data = await self._bitrix_client.get_lead(lead_id)
+
+            title = self._build_lead_title(
+                profile.phone, lead_data, profile.name, profile.city
+            )
+            fields["title"] = title
+
             if lead_id:
                 await self._bitrix_client.update_lead(lead_id, fields)
                 self._logger.info(
                     "lead updated on handoff",
-                    extra={"session_id": session_id, "lead_id": lead_id},
+                    extra={
+                        "session_id": session_id,
+                        "lead_id": lead_id,
+                        "title": title,
+                    },
                 )
             else:
-                fields["title"] = f"AI-бот: {user_message[:80]}"
                 new_id = await self._bitrix_client.create_lead(fields)
                 if new_id:
                     self._profile_store.update(session_id, bitrix_lead_id=new_id)
                     lead_id = new_id
                     self._logger.info(
                         "lead created on handoff",
-                        extra={"session_id": session_id, "lead_id": new_id},
+                        extra={
+                            "session_id": session_id,
+                            "lead_id": new_id,
+                            "title": title,
+                        },
                     )
 
             if lead_id and (profile.phone or profile.email):
