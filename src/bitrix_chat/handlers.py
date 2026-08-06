@@ -585,7 +585,7 @@ class OpenLineMessageHandler:
                         extra={"session_id": session_id, "lead_id": new_id},
                     )
 
-            if lead_id:
+            if lead_id and (profile.phone or profile.email):
                 timeline_parts: list[str] = []
                 if profile.request_summary:
                     timeline_parts.append(f"Суть запроса: {profile.request_summary}")
