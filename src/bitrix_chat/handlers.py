@@ -414,8 +414,8 @@ class OpenLineMessageHandler:
                             target_chat_id = resolved_chat_id
                         entity_data_1 = dialog_result.get("entity_data_1")
                         lead_id = _parse_lead_id(entity_data_1)
+                        session_id = str(message.message_user_id)
                         if lead_id:
-                            session_id = str(message.message_user_id)
                             self._profile_store.update(
                                 session_id, bitrix_lead_id=lead_id
                             )
@@ -423,6 +423,18 @@ class OpenLineMessageHandler:
                                 "saved lead_id from dialog",
                                 extra={"session_id": session_id, "lead_id": lead_id},
                             )
+                        dialog_name = dialog_result.get("name")
+                        if dialog_name and isinstance(dialog_name, str):
+                            client_name = dialog_name.split(" - ")[0].strip()
+                            if client_name:
+                                self._profile_store.update(session_id, name=client_name)
+                                self._logger.info(
+                                    "saved name from dialog",
+                                    extra={
+                                        "session_id": session_id,
+                                        "name": client_name,
+                                    },
+                                )
                 except Exception:
                     self._logger.exception(
                         "failed to resolve openline dialog",
@@ -532,7 +544,6 @@ class OpenLineMessageHandler:
     def _build_lead_title(
         self,
         phone: str | None,
-        lead_data: dict[str, object] | None,
         profile_name: str | None,
         city: str | None,
     ) -> str:
@@ -541,15 +552,7 @@ class OpenLineMessageHandler:
 
         first_name = ""
         last_name = ""
-        if lead_data:
-            first_name = str(lead_data.get("name", "") or "").strip()
-            if not first_name:
-                first_name = str(lead_data.get("NAME", "") or "").strip()
-            last_name = str(lead_data.get("lastName", "") or "").strip()
-            if not last_name:
-                last_name = str(lead_data.get("LAST_NAME", "") or "").strip()
-
-        if not first_name and profile_name:
+        if profile_name:
             name_parts = profile_name.strip().split()
             first_name = name_parts[0] if name_parts else ""
             last_name = name_parts[1] if len(name_parts) > 1 else ""
@@ -635,13 +638,7 @@ class OpenLineMessageHandler:
             return
 
         try:
-            lead_data = None
-            if lead_id:
-                lead_data = await self._bitrix_client.get_lead(lead_id)
-
-            title = self._build_lead_title(
-                profile.phone, lead_data, profile.name, profile.city
-            )
+            title = self._build_lead_title(profile.phone, profile.name, profile.city)
             fields["title"] = title
 
             if lead_id:

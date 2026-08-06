@@ -258,19 +258,6 @@ class OAuthBitrixClient:
         )
         return bool(success)
 
-    async def get_lead(self, lead_id: int) -> dict[str, Any] | None:
-        response = await self.call(
-            "crm.item.get",
-            {"entityTypeId": 1, "id": lead_id},
-        )
-        result = response.get("result", {})
-        item = result.get("item") if isinstance(result, dict) else None
-        self._logger.info(
-            "fetched CRM lead",
-            extra={"lead_id": lead_id, "response": response},
-        )
-        return item if isinstance(item, dict) else None
-
     async def add_timeline_comment(self, lead_id: int, comment: str) -> int | None:
         response = await self.call(
             "crm.timeline.comment.add",
