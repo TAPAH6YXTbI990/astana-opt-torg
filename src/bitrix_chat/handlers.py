@@ -487,6 +487,9 @@ class OpenLineMessageHandler:
                     handoff_reason = (
                         "Клиент запросил живого специалиста (regex fallback)"
                     )
+                    self._profile_store.update(
+                        session_id, handoff_needed=True, handoff_reason=handoff_reason
+                    )
                     self._logger.info(
                         "handoff triggered via regex fallback",
                         extra={

@@ -228,7 +228,7 @@ class Agent:
                     clean_messages.append(msg)
             clean_messages.append(messages[-1])
 
-            final_response = self._llm_with_tools.invoke(clean_messages)
+            final_response = self._llm.invoke(clean_messages)
             answer = final_response.content
             if not answer or not answer.strip():
                 if handoff:
