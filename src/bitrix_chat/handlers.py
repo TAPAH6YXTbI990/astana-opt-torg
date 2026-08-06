@@ -496,8 +496,7 @@ class OpenLineMessageHandler:
                     )
 
                 profile = self._profile_store.get(session_id)
-                has_contact = bool(profile.phone or profile.email)
-                if profile.handoff_needed and has_contact:
+                if profile.handoff_needed:
                     await self._update_lead_on_handoff(session_id, reply_text)
             except Exception:
                 self._logger.exception(
