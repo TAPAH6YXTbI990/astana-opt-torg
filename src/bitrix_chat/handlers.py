@@ -432,7 +432,7 @@ class OpenLineMessageHandler:
                                     "saved name from dialog",
                                     extra={
                                         "session_id": session_id,
-                                        "name": client_name,
+                                        "dialog_name": client_name,
                                     },
                                 )
                 except Exception:
