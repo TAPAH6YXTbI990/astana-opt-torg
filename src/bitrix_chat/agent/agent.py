@@ -226,6 +226,11 @@ class Agent:
                         tool_call_id=tc["id"],
                     )
                 )
+            messages.append(
+                HumanMessage(
+                    content="Данные клиента сохранены. Теперь ОБЯЗАТЕЛЬНО ответь на вопрос клиента."
+                )
+            )
             final_response = self._llm_with_tools.invoke(messages)
             answer = final_response.content
             if not answer or not answer.strip():
