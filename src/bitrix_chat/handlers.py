@@ -44,6 +44,19 @@ _HANDOFF_PATTERN = re.compile(
 )
 
 
+def _normalize_phone(phone: str | None) -> str | None:
+    if not phone:
+        return None
+    digits = re.sub(r"[^\d]", "", phone)
+    if digits.startswith("8") and len(digits) == 11:
+        return "+7" + digits[1:]
+    if digits.startswith("7") and len(digits) == 11:
+        return "+" + digits
+    if digits.startswith("7"):
+        return "+" + digits
+    return phone
+
+
 @dataclass(slots=True)
 class HandleResult:
     handled: bool
@@ -447,16 +460,15 @@ class OpenLineMessageHandler:
                     message_text=reply_text,
                     session_id=str(message.message_user_id),
                 )
+                session_id = str(message.message_user_id)
+
                 if handoff:
                     self._logger.info(
                         "handoff triggered",
                         extra={
-                            "session_id": str(message.message_user_id),
+                            "session_id": session_id,
                             "reason": handoff_reason,
                         },
-                    )
-                    await self._update_lead_on_handoff(
-                        str(message.message_user_id), reply_text
                     )
                 elif _HANDOFF_PATTERN.search(reply_text):
                     handoff = True
@@ -466,13 +478,14 @@ class OpenLineMessageHandler:
                     self._logger.info(
                         "handoff triggered via regex fallback",
                         extra={
-                            "session_id": str(message.message_user_id),
+                            "session_id": session_id,
                             "reason": handoff_reason,
                         },
                     )
-                    await self._update_lead_on_handoff(
-                        str(message.message_user_id), reply_text
-                    )
+
+                profile = self._profile_store.get(session_id)
+                if profile.bitrix_lead_id and profile.handoff_needed:
+                    await self._update_lead_on_handoff(session_id, reply_text)
             except Exception:
                 self._logger.exception(
                     "failed to get agent answer",
@@ -545,10 +558,9 @@ class OpenLineMessageHandler:
         if profile.company:
             fields["companyTitle"] = profile.company
 
-        if profile.phone:
-            fields["fm"] = [
-                {"typeId": "PHONE", "valueType": "WORK", "value": profile.phone}
-            ]
+        phone = _normalize_phone(profile.phone)
+        if phone:
+            fields["fm"] = [{"typeId": "PHONE", "valueType": "WORK", "value": phone}]
 
         if profile.city or profile.country:
             city_country = ", ".join(filter(None, [profile.city, profile.country]))
