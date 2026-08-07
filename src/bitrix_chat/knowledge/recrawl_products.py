@@ -160,7 +160,11 @@ def main() -> None:
         print(f"Error: {urls_file} not found", file=sys.stderr)
         sys.exit(1)
 
-    urls = [line.strip().lstrip("\ufeff") for line in urls_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+    urls = [
+        line.strip().lstrip("\ufeff")
+        for line in urls_file.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     print(f"Loaded {len(urls)} product URLs")
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -172,7 +176,7 @@ def main() -> None:
 
     for i, url in enumerate(urls, 1):
         # Generate filename from URL
-        slug = url.split("astopt.com/")[-1].replace("/", "_").strip("_")
+        slug = url.split("astopt.ru/")[-1].replace("/", "_").strip("_")
         md_path = output_dir / f"{slug}.md"
 
         # Skip if already fetched
@@ -183,7 +187,7 @@ def main() -> None:
         try:
             raw, cleaned, title = fetch(
                 url,
-                user_agent="Mozilla/5.0 (compatible; AstoptCrawler/1.0; +https://astopt.com/bot)",
+                user_agent="Mozilla/5.0 (compatible; AstoptCrawler/1.0; +https://astopt.ru/bot)",
                 selectors=PRODUCT_CLEAN_SELECTORS,
             )
 
@@ -199,7 +203,9 @@ def main() -> None:
             success += 1
 
             if i % 10 == 0 or i == len(urls):
-                print(f"Progress: {i}/{len(urls)} (success={success}, failed={failed}, skipped={skipped})")
+                print(
+                    f"Progress: {i}/{len(urls)} (success={success}, failed={failed}, skipped={skipped})"
+                )
 
         except Exception as exc:
             failed += 1

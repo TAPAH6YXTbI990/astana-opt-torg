@@ -1,0 +1,25 @@
+# Конфигурация обхода сайта заказчика (WordPress + WooCommerce, astopt.ru).
+# Обход через sitemap + seeds.
+
+allowed_domain = "astopt.ru"
+output_dir = "crawl_output"
+rate_limit_s = 1.0          # пауза между запросами, сек
+respect_robots = true       # соблюдать robots.txt
+use_sitemap = true          # подтянет sitemap и добавит URL как seeds
+max_pages = 200             # лимит страниц пагинации каталога
+max_total_pages = 2000      # общий лимит страниц за прогон (страховка)
+
+# seeds — стартовые страницы. Sitemap добавит остальное.
+seeds = [
+  "https://astopt.ru/",
+]
+
+# Дополнительные шаблоны исключений (regex). По умолчанию уже учтены:
+# wp-admin, wp-login, cart, checkout, my-account, wishlist, feed,
+# add-to-cart, compare, файлы (*.css/*.js/*.png/...), а также
+# query-параметры (utm_*, fbclid, фильтры, ?action=, ?s= и т.п.).
+# exclude_patterns = []
+
+# Чистка HTML перед отдачей в docling (удаляются теги script/style/noscript/
+# nav/header/aside/footer и элементы по CSS-селекторам).
+# clean_selectors = ["nav", "header", "aside", "footer", ".nav-sidebar", ".sidebar", ".menu-sidebar"]

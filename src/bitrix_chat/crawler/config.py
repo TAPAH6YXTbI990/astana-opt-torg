@@ -4,7 +4,7 @@ import tomllib
 from dataclasses import dataclass, field
 
 DEFAULT_USER_AGENT = (
-    "Mozilla/5.0 (compatible; AstoptCrawler/1.0; +https://astopt.com/bot)"
+    "Mozilla/5.0 (compatible; AstoptCrawler/1.0; +https://astopt.ru/bot)"
 )
 
 DEFAULT_EXCLUDE_PATTERNS = [
@@ -107,9 +107,7 @@ class CrawlConfig:
             catalog_patterns=list(
                 data.get("catalog_patterns", DEFAULT_CATALOG_PATTERNS)
             ),
-            clean_selectors=list(
-                data.get("clean_selectors", DEFAULT_CLEAN_SELECTORS)
-            ),
+            clean_selectors=list(data.get("clean_selectors", DEFAULT_CLEAN_SELECTORS)),
         )
 
     def validate(self) -> None:

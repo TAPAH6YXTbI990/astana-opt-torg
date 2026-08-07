@@ -11,14 +11,12 @@ import sys
 from pathlib import Path
 
 
-# Product URL pattern: https://astopt.com/shop/.../<slug>/
+# Product URL pattern: https://astopt.ru/shop/.../<slug>/
 # Excludes: pagination (/page/N/), category pages, tag pages
-PRODUCT_URL_RE = re.compile(
-    r"https?://astopt\.com/shop/(?!page/\d)([^\s\)\"']+)"
-)
+PRODUCT_URL_RE = re.compile(r"https?://astopt\.ru/shop/(?!page/\d)([^\s\)\"']+)")
 
 # Markdown link pattern: [text](url)
-MD_LINK_RE = re.compile(r"\[([^\]]*)\]\((https?://astopt\.com/shop/[^\)]+)\)")
+MD_LINK_RE = re.compile(r"\[([^\]]*)\]\((https?://astopt\.ru/shop/[^\)]+)\)")
 
 # Pages to skip (non-product patterns)
 SKIP_PATTERNS = [
@@ -45,7 +43,7 @@ def is_product_url(url: str) -> bool:
         if re.search(pattern, url):
             return False
     # Product URLs end with a slug (not empty, not /)
-    path = url.split("astopt.com")[-1].rstrip("/")
+    path = url.split("astopt.ru")[-1].rstrip("/")
     if not path or path == "/shop":
         return False
     # Must have at least 2 path segments under /shop/
@@ -90,7 +88,9 @@ def main() -> None:
     category_files = list(crawl_dir.glob("product-category_*.md"))
     all_files = tag_files + category_files
 
-    print(f"Scanning {len(all_files)} files ({len(tag_files)} tags, {len(category_files)} categories)")
+    print(
+        f"Scanning {len(all_files)} files ({len(tag_files)} tags, {len(category_files)} categories)"
+    )
 
     all_urls: dict[str, str] = {}  # url -> name
     source_map: dict[str, list[str]] = {}  # url -> [source files]

@@ -106,7 +106,7 @@ def main() -> None:
         for line in urls_file.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if line:
-                slug = line.split("astopt.com/")[-1].replace("/", "_").strip("_")
+                slug = line.split("astopt.ru/")[-1].replace("/", "_").strip("_")
                 url_map[slug] = line
 
     # Process all .md files
@@ -145,16 +145,20 @@ def main() -> None:
             lines.extend(["", f"## {cat}", ""])
 
         name = product.get("name") or "Без названия"
-        price = f"₸ {product['price']:,.2f}" if product.get("price") else "Цена не указана"
+        price = (
+            f"₸ {product['price']:,.2f}" if product.get("price") else "Цена не указана"
+        )
         sku = f"Артикул: {product['sku']}" if product.get("sku") else ""
-        stock = product['stock'] if product.get("stock") is not None else None
+        stock = product["stock"] if product.get("stock") is not None else None
         desc = product.get("description") or ""
 
-        lines.extend([
-            f"### {name}",
-            "",
-            f"**Цена:** {price}",
-        ])
+        lines.extend(
+            [
+                f"### {name}",
+                "",
+                f"**Цена:** {price}",
+            ]
+        )
         if stock is not None:
             if stock is not None:
                 lines.append(f"**Остаток:** {stock} шт")

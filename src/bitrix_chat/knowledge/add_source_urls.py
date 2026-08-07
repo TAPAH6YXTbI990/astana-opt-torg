@@ -24,7 +24,7 @@ def main() -> None:
         line = line.strip()
         if not line:
             continue
-        slug = line.split("astopt.com/")[-1].replace("/", "_").strip("_")
+        slug = line.split("astopt.ru/")[-1].replace("/", "_").strip("_")
         url_map[slug] = line
 
     updated = 0
