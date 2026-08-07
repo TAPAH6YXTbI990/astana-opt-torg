@@ -16,7 +16,6 @@ EXTRACTOR_SYSTEM_PROMPT = """Ты — система извлечения дан
 
 Поля JSON (используй null если данных нет):
 {
-  "name": "имя клиента (только имя, без фамилии)",
   "company": "название компании",
   "phone": "телефон в формате +7XXXXXXXXXX или 8XXXXXXXXXX",
   "email": "email адрес",
