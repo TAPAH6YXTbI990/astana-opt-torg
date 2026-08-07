@@ -474,7 +474,7 @@ class OpenLineMessageHandler:
 
                 self._logger.info(
                     "extracting data from message",
-                    extra={"session_id": session_id, "message": reply_text[:100]},
+                    extra={"session_id": session_id, "user_message": reply_text[:100]},
                 )
                 self._extractor.extract(reply_text, session_id)
 
