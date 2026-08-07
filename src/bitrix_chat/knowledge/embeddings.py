@@ -155,15 +155,16 @@ def load_segments(knowledge_dir: Path, enc: tiktoken.Encoding) -> list[Segment]:
         for product in products:
             # Build a readable text representation
             lines = [f"Товар: {product.get('name', 'Без названия')}"]
-            if product.get("description"):
-                lines.append(f"Описание: {product['description']}")
+            if product.get("sku"):
+                lines.append(f"Артикул: {product['sku']}")
             if product.get("price") is not None:
-                lines.append(f"Цена: {product['price']} тенге")
+                lines.append(f"Цена: {product['price']:.0f} тенге")
+            if product.get("pack_qty") and product.get("price_per_unit"):
+                lines.append(
+                    f"Упаковка: {product['pack_qty']} шт | {product['price_per_unit']:.0f} тенге/шт"
+                )
             if product.get("stock") is not None:
                 lines.append(f"Остаток: {product['stock']} шт")
-            if product.get("attributes"):
-                for k, v in product["attributes"].items():
-                    lines.append(f"{k}: {v}")
             if product.get("category_path"):
                 lines.append(f"Категория: {product['category_path']}")
             if product.get("url"):
