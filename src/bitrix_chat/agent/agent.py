@@ -13,7 +13,7 @@ from .profile import ClientProfile, ProfileStore
 from .tools import get_tools
 
 _TOOL_CALL_PATTERN = re.compile(
-    r"(?:^|\n)\s*(?:update_client_profile|request_handoff)\s*\(\s*\{.*?\}\s*\)\s*(?:\n|$)",
+    r"(?:update_client_profile|request_handoff)\s*\(\s*\{.*?\}\s*\)",
     re.DOTALL,
 )
 
@@ -115,9 +115,8 @@ class AgentResult:
 
 def _clean_answer(text: str) -> str:
     """Remove tool call patterns that the LLM may echo in its response."""
-    cleaned = _TOOL_CALL_PATTERN.sub("\n", text).strip()
-    if not cleaned:
-        return ""
+    cleaned = _TOOL_CALL_PATTERN.sub("", text)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
     return cleaned
 
 
@@ -241,6 +240,16 @@ class Agent:
                 elif isinstance(msg, AIMessage) and not msg.tool_calls:
                     clean_messages.append(msg)
             clean_messages.append(messages[-1])
+            clean_messages.append(
+                SystemMessage(
+                    content=(
+                        "Сгенерируй ответ клиенту. "
+                        "НЕ вызывай инструменты — они уже были вызваны. "
+                        "НЕ пиши название инструментов или JSON-вызовы. "
+                        "Просто ответь текстом."
+                    )
+                )
+            )
 
             final_response = self._llm.invoke(clean_messages)
             answer = (
