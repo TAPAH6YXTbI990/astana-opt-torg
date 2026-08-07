@@ -9,6 +9,7 @@ from uuid import uuid4
 from urllib.request import Request, urlopen
 
 from .agent.agent import Agent
+from .agent.extractor import DataExtractor
 from .agent.profile import ProfileStore
 from .app_auth import AppAuth, AppAuthStore
 from .bitrix_client import BitrixClient
@@ -266,6 +267,7 @@ class OpenLineMessageHandler:
         self._dedup_store = dedup_store
         self._auth_store = auth_store
         self._agent = agent
+        self._extractor = DataExtractor()
         self._profile_store = ProfileStore()
         self._logger = logging.getLogger(__name__)
 
@@ -468,11 +470,18 @@ class OpenLineMessageHandler:
                 },
             )
             try:
+                session_id = str(message.message_user_id)
+
+                self._logger.info(
+                    "extracting data from message",
+                    extra={"session_id": session_id, "message": reply_text[:100]},
+                )
+                self._extractor.extract(reply_text, session_id)
+
                 external_answer, handoff, handoff_reason = self._get_agent_answer(
                     message_text=reply_text,
-                    session_id=str(message.message_user_id),
+                    session_id=session_id,
                 )
-                session_id = str(message.message_user_id)
 
                 if handoff:
                     self._profile_store.update(
