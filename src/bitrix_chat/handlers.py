@@ -686,8 +686,28 @@ class OpenLineMessageHandler:
                         },
                     )
 
-            if lead_id and (profile.phone or profile.email):
+            if lead_id:
                 timeline_parts: list[str] = []
+                if profile.name:
+                    timeline_parts.append(f"Имя: {profile.name}")
+                if profile.company:
+                    timeline_parts.append(f"Компания: {profile.company}")
+                phone = _normalize_phone(profile.phone)
+                if phone:
+                    timeline_parts.append(f"Телефон: {phone}")
+                if profile.email:
+                    timeline_parts.append(f"Email: {profile.email}")
+                if profile.city or profile.country:
+                    city_country = ", ".join(
+                        filter(None, [profile.city, profile.country])
+                    )
+                    timeline_parts.append(f"Город: {city_country}")
+                if profile.interests:
+                    timeline_parts.append(f"Интересы: {', '.join(profile.interests)}")
+                if profile.client_type:
+                    timeline_parts.append(f"Тип клиента: {profile.client_type}")
+                if profile.volume:
+                    timeline_parts.append(f"Объём: {profile.volume}")
                 if profile.request_summary:
                     timeline_parts.append(f"Суть запроса: {profile.request_summary}")
                 if profile.interest_level:
