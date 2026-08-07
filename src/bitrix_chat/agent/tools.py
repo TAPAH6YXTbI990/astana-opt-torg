@@ -66,6 +66,21 @@ def update_client_profile(
         "profile updated via tool",
         extra={"session_id": session_id, "fields": list(fields.keys())},
     )
+    logger.info(
+        "profile updated fields detail",
+        extra={
+            "session_id": session_id,
+            "name": name,
+            "company": company,
+            "phone": phone,
+            "email": email,
+            "city": city,
+            "country": country,
+            "interests": str(interests),
+            "volume": volume,
+            "client_type": client_type,
+        },
+    )
     return f"Профиль обновлён: {profile.format_for_prompt()}"
 
 

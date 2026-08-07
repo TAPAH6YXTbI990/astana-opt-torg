@@ -192,7 +192,7 @@ class Agent:
                 extra={
                     "session_id": session_id,
                     "tool": tool_name,
-                    "tool_args": str(tool_args)[:200],
+                    "tool_args": str(tool_args)[:500],
                 },
             )
 
