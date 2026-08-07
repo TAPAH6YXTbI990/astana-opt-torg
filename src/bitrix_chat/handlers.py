@@ -475,6 +475,11 @@ class OpenLineMessageHandler:
                 session_id = str(message.message_user_id)
 
                 if handoff:
+                    self._profile_store.update(
+                        session_id,
+                        handoff_needed=True,
+                        handoff_reason=handoff_reason or "",
+                    )
                     self._logger.info(
                         "handoff triggered",
                         extra={
